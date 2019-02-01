@@ -225,4 +225,5 @@ type Options struct {
 	Threshold             float64
 	OutputICC             string
 	NumOfPages            int
+	Density               float64
 }
