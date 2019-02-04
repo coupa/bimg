@@ -362,7 +362,7 @@ func TestImageConvert(t *testing.T) {
 
 func TestConvertPage(t *testing.T) {
 	i := initImage("test.gif")
-	buf, err := i.ConvertPages(JPEG, 7)
+	buf, err := i.ConvertPages(JPEG, 7, 0)
 	if err != nil {
 		t.Errorf("Cannot process the image: %#v", err)
 	}
@@ -370,7 +370,7 @@ func TestConvertPage(t *testing.T) {
 	WriteToFileAndCleanup(t, "testdata/test_convert_multipage_gif.jpg", buf)
 
 	i = initImage("test.tiff")
-	buf, err = i.ConvertPages(JPEG, 0)
+	buf, err = i.ConvertPages(JPEG, 0, 0)
 	if err != nil {
 		t.Errorf("Cannot process the image: %#v", err)
 	}
@@ -379,7 +379,7 @@ func TestConvertPage(t *testing.T) {
 
 	if VipsMajorVersion >= 8 && VipsMinorVersion > 2 {
 		i := initImage("test2.pdf")
-		buf, err := i.ConvertPages(JPEG, 0)
+		buf, err := i.ConvertPages(JPEG, 0, 50)
 		if err != nil {
 			t.Errorf("Cannot process the image: %#v", err)
 		}

@@ -173,8 +173,8 @@ func (i *Image) Convert(t ImageType) ([]byte, error) {
 }
 
 // ConvertPage converts the specified page from a multi-page image to another format.
-func (i *Image) ConvertPages(t ImageType, n int) ([]byte, error) {
-	options := Options{Type: t, NumOfPages: n}
+func (i *Image) ConvertPages(t ImageType, n int, d float64) ([]byte, error) {
+	options := Options{Type: t, NumOfPages: n, Density: d}
 	return i.Process(options)
 }
 

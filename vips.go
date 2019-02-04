@@ -78,6 +78,7 @@ type vipsWatermarkTextOptions struct {
 
 type vipsLoadOptions struct {
 	NumOfPages C.int
+	Density    C.double
 }
 
 func init() {
@@ -317,7 +318,7 @@ func vipsReadWithOptions(buf []byte, o Options) (*C.VipsImage, ImageType, error)
 		o.NumOfPages = -1
 	}
 
-	opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages)}
+	opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages), Density: C.double(o.Density)}
 	err := C.vips_init_image(imageBuf, length, C.int(imageType), &image, (*C.Options)(unsafe.Pointer(&opts)))
 	if err != 0 {
 		return nil, UNKNOWN, catchVipsError()
