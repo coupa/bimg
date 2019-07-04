@@ -37,7 +37,7 @@ func resizer(buf []byte, o Options) ([]byte, error) {
 
 	// If JPEG image, retrieve the buffer
 	if rotated && imageType == JPEG && !o.NoAutoRotate {
-		buf, err = getImageBuffer(image)
+		buf, err = getImageBuffer(image, imageType)
 		if err != nil {
 			return nil, err
 		}

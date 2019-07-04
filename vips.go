@@ -78,6 +78,7 @@ type vipsWatermarkTextOptions struct {
 
 type vipsLoadOptions struct {
 	NumOfPages C.int
+	PageToLoad C.int
 	Density    C.double
 }
 
@@ -301,6 +302,31 @@ func vipsRead(buf []byte) (*C.VipsImage, ImageType, error) {
 	return vipsReadWithOptions(buf, Options{})
 }
 
+func vipsArrayJoin(imgArr []*Image) (*C.VipsImage, error) {
+	vipsArrayImage := C.vips_array_image_empty()
+
+	// Convert bimg's image array to VipsImageArray
+	for _, image := range imgArr {
+		buff := image.buffer
+		vipsImage, _, err := vipsRead(buff)
+		if err != nil {
+			return nil, err
+		}
+		vipsArrayImage = C.vips_array_image_append(vipsArrayImage, vipsImage)
+	}
+
+	var out *C.VipsImage
+	imgArrLength := C.int(len(imgArr))
+
+	vipsArrImg := C.vips_array_image_get(vipsArrayImage, &imgArrLength)
+	returnCode := C.vips_arrayjoin_bridge(vipsArrImg, &out, imgArrLength)
+	if returnCode != 0 {
+		return nil, catchVipsError()
+	}
+
+	return out, nil
+}
+
 func vipsReadWithOptions(buf []byte, o Options) (*C.VipsImage, ImageType, error) {
 	var image *C.VipsImage
 	imageType := vipsImageType(buf)
@@ -318,7 +344,7 @@ func vipsReadWithOptions(buf []byte, o Options) (*C.VipsImage, ImageType, error)
 		o.NumOfPages = -1
 	}
 
-	opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages), Density: C.double(o.Density)}
+	opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages), Density: C.double(o.Density), PageToLoad: C.int(o.PageToLoad)}
 	err := C.vips_init_image(imageBuf, length, C.int(imageType), &image, (*C.Options)(unsafe.Pointer(&opts)))
 	if err != 0 {
 		return nil, UNKNOWN, catchVipsError()
@@ -464,15 +490,22 @@ func vipsSave(image *C.VipsImage, o vipsSaveOptions) ([]byte, error) {
 	return buf, nil
 }
 
-func getImageBuffer(image *C.VipsImage) ([]byte, error) {
+func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
 	var ptr unsafe.Pointer
 
 	length := C.size_t(0)
 	interlace := C.int(0)
+	compression := C.int(0)
 	quality := C.int(100)
 
 	err := C.int(0)
-	err = C.vips_jpegsave_bridge(image, &ptr, &length, 1, quality, interlace)
+	switch imageType {
+	case PNG:
+		err = C.vips_pngsave_bridge(image, &ptr, &length, 1, compression, quality, interlace)
+	default:
+		err = C.vips_jpegsave_bridge(image, &ptr, &length, 1, quality, interlace)
+	}
+
 	if int(err) != 0 {
 		return nil, catchVipsError()
 	}

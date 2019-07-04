@@ -57,6 +57,7 @@ typedef struct {
 
 typedef struct {
   int NumOfPages;
+  int PageToLoad;
   double Density;
 } Options;
 
@@ -363,7 +364,7 @@ vips_init_image (void *buf, size_t len, int imageType, VipsImage **out, Options 
 	} else if (imageType == WEBP) {
 		code = vips_webpload_buffer(buf, len, out, "access", VIPS_ACCESS_RANDOM, NULL);
 	} else if (imageType == TIFF) {
-		code = vips_tiffload_buffer(buf, len, out, "access", VIPS_ACCESS_RANDOM, "n", opts->NumOfPages, NULL);
+		code = vips_tiffload_buffer(buf, len, out, "access", VIPS_ACCESS_RANDOM, "page", opts->PageToLoad, NULL);
 #if (VIPS_MAJOR_VERSION >= 8)
 #if (VIPS_MINOR_VERSION >= 3)
 	} else if (imageType == GIF) {
@@ -570,3 +571,13 @@ int vips_find_trim_bridge(VipsImage *in, int *top, int *left, int *width, int *h
 	return 0;
 #endif
 }
+
+int 
+vips_arrayjoin_bridge( VipsImage **in, VipsImage **out, int n) {
+  // Set background to white when joining images
+  double background[3] = {255.0, 255.0, 255.0};
+  VipsArrayDouble *vipsBackground = vips_array_double_new(background, 3);
+
+  return vips_arrayjoin(in, out, n, "across", 1, "background", vipsBackground,  NULL);
+}
+
