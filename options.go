@@ -226,4 +226,5 @@ type Options struct {
 	OutputICC             string
 	NumOfPages            int
 	Density               float64
+	PageToLoad            int // Used in multi-page tiff files in-order to load the current page
 }
