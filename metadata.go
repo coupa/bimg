@@ -56,6 +56,25 @@ func Metadata(buf []byte) (ImageMetadata, error) {
 	if err != nil {
 		return ImageMetadata{}, err
 	}
+
+	return metaDataInfo(image, imageType)
+
+}
+
+// Used in multi-page TIFF to get the metadata per page
+func MetaDataWithOptions(buf []byte, o Options) (ImageMetadata, error) {
+	defer C.vips_thread_shutdown()
+
+	image, imageType, err := vipsReadWithOptions(buf, o)
+	if err != nil {
+		return ImageMetadata{}, err
+	}
+
+	return metaDataInfo(image, imageType)
+
+}
+
+func metaDataInfo(image *C.VipsImage, imageType ImageType) (ImageMetadata, error) {
 	defer C.g_object_unref(C.gpointer(image))
 
 	size := ImageSize{
