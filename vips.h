@@ -581,3 +581,7 @@ vips_arrayjoin_bridge( VipsImage **in, VipsImage **out, int n) {
   return vips_arrayjoin(in, out, n, "across", 1, "background", vipsBackground,  NULL);
 }
 
+int
+vips_write_to_file_bridge( VipsImage *in, const char *name) {
+  return vips_image_write_to_file(in, name, NULL);
+}
