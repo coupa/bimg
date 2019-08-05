@@ -490,6 +490,15 @@ func vipsSave(image *C.VipsImage, o vipsSaveOptions) ([]byte, error) {
 	return buf, nil
 }
 
+func vipsWriteToFile(image *C.VipsImage, filename string) error {
+	err := C.vips_write_to_file_bridge(image, C.CString(filename))
+	if int(err) != 0 {
+		return catchVipsError()
+	}
+
+	return nil
+}
+
 func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
 	var ptr unsafe.Pointer
 
