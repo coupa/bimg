@@ -107,12 +107,6 @@ func Initialize() {
 	C.vips_cache_set_max_mem(maxCacheMem)
 	C.vips_cache_set_max(maxCacheSize)
 
-	// Define a custom thread concurrency limit in libvips (this may generate thread-unsafe issues)
-	// See: https://github.com/jcupitt/libvips/issues/261#issuecomment-92850414
-	if os.Getenv("VIPS_CONCURRENCY") == "" {
-		C.vips_concurrency_set(1)
-	}
-
 	// Enable libvips cache tracing
 	if os.Getenv("VIPS_TRACE") != "" {
 		C.vips_enable_cache_set_trace()
