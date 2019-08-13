@@ -755,3 +755,15 @@ func vipsDrawWatermark(image *C.VipsImage, o WatermarkImage) (*C.VipsImage, erro
 
 	return out, nil
 }
+
+func VipsPDFPageCount(buf []byte) (int, error) {
+	var image *C.VipsImage
+	length := C.size_t(len(buf))
+	imageBuf := unsafe.Pointer(&buf[0])
+	err := C.vips_pdfload_buffer_bridge(imageBuf, length, &image)
+	if err != 0 {
+		return 0, catchVipsError()
+	}
+	pages := C.vips_get_page_count(image)
+	return int(pages), nil
+}
