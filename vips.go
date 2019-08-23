@@ -98,7 +98,10 @@ func Initialize() {
 	defer m.Unlock()
 	defer runtime.UnlockOSThread()
 
-	err := C.vips_init(C.CString("bimg"))
+	cName := C.CString("bimg")
+	defer C.free(unsafe.Pointer(cName))
+
+	err := C.vips_init(cName)
 	if err != 0 {
 		panic("unable to start vips!")
 	}
@@ -485,7 +488,10 @@ func vipsSave(image *C.VipsImage, o vipsSaveOptions) ([]byte, error) {
 }
 
 func vipsWriteToFile(image *C.VipsImage, filename string) error {
-	err := C.vips_write_to_file_bridge(image, C.CString(filename))
+	fName := C.CString(filename)
+	defer C.free(unsafe.Pointer(fName))
+
+	err := C.vips_write_to_file_bridge(image, fName)
 	if int(err) != 0 {
 		return catchVipsError()
 	}
