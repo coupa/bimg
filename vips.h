@@ -592,19 +592,6 @@ vips_pdfload_buffer_bridge(void *buf, size_t len, VipsImage **out) {
 }
 
 int 
-vips_get_page_count(VipsImage *image) {
-  /* The below code is taken from `vips_image_get_n_pages` method of libvips v8.8.1 as this method is not exposed in v8.7.4.
-    Ref: https://github.com/libvips/libvips/blob/master/libvips/iofuncs/header.c#L824-#L834
-    Note: Remove the below code when libvips is upgraded to v8.8.1
-  */
-
-  int n_pages;
-
-  if( !vips_image_get_typeof( image, VIPS_META_N_PAGES ) ||
-    vips_image_get_int( image, VIPS_META_N_PAGES, &n_pages ) ||
-    n_pages < 2 || 
-    n_pages > 1000 )
-    n_pages = 1;
-
-  return( n_pages );
+vips_image_get_n_pages_bridge(VipsImage *image) {
+  return vips_image_get_n_pages(image);
 }

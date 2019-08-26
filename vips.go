@@ -770,6 +770,6 @@ func VipsPDFPageCount(buf []byte) (int, error) {
 	if err != 0 {
 		return 0, catchVipsError()
 	}
-	pages := C.vips_get_page_count(image)
+	pages := C.vips_image_get_n_pages_bridge(image)
 	return int(pages), nil
 }
