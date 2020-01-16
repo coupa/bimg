@@ -573,16 +573,15 @@ int vips_find_trim_bridge(VipsImage *in, int *top, int *left, int *width, int *h
 }
 
 int 
-vips_arrayjoin_bridge( VipsImage **in, VipsImage **out, int n) {
+vips_arrayjoin_bridge(VipsImage **in, VipsImage **out, int n) {
   // Set background to white when joining images
-  double background[3] = {255.0, 255.0, 255.0};
-  VipsArrayDouble *vipsBackground = vips_array_double_new(background, 3);
-
-  return vips_arrayjoin(in, out, n, "across", 1, "background", vipsBackground,  NULL);
+  // It is requied to set four values, when joining png images with alpha band. Else it throws `linear vector` error
+  double background[4] = {255.0, 255.0, 255.0, 255.0};
+  return vips_arrayjoin(in, out, n, "across", 1, "background", vips_array_double_new(background, 4),  NULL);
 }
 
 int
-vips_write_to_file_bridge( VipsImage *in, const char *name) {
+vips_write_to_file_bridge(VipsImage *in, const char *name) {
   return vips_image_write_to_file(in, name, NULL);
 }
 
@@ -594,4 +593,9 @@ vips_pdfload_buffer_bridge(void *buf, size_t len, VipsImage **out) {
 int 
 vips_image_get_n_pages_bridge(VipsImage *image) {
   return vips_image_get_n_pages(image);
+}
+
+int 
+vips_addalpha_bridge(VipsImage *image, VipsImage **out) {
+  return vips_addalpha(image, out, NULL);
 }
