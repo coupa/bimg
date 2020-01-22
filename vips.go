@@ -26,6 +26,8 @@ const VipsMajorVersion = int(C.VIPS_MAJOR_VERSION)
 // VipsMinorVersion exposes the current libvips minor version number
 const VipsMinorVersion = int(C.VIPS_MINOR_VERSION)
 
+const BandValueToAddAlpha = 3
+
 const (
 	maxCacheMem  = 100 * 1024 * 1024
 	maxCacheSize = 500
@@ -309,6 +311,21 @@ func vipsArrayJoin(imgArr []*Image) (*C.VipsImage, error) {
 		if err != nil {
 			return nil, err
 		}
+		// The interpretation for the incoming images is set as `sRGB` in imagica. Refer `parseColorspace` method in `params.go`.
+		// For a `sRGB` interpretation, bands should not be equal to 3. If so, then set an extra alpha band.
+		// Refer: https://github.com/libvips/libvips/issues/1525
+		bands := C.vips_image_get_bands(vipsImage)
+		if bands == BandValueToAddAlpha {
+			var inAlphaImage *C.VipsImage
+			errorCode := C.vips_addalpha_bridge(vipsImage, &inAlphaImage)
+			if errorCode != 0 {
+				return nil, catchVipsError()
+			}
+			vipsArrayImage = C.vips_array_image_append(vipsArrayImage, inAlphaImage)
+			C.g_object_unref(C.gpointer(inAlphaImage))
+			continue
+		}
+		// Correct number of bands are present. Don't process anything. Add to the array
 		vipsArrayImage = C.vips_array_image_append(vipsArrayImage, vipsImage)
 	}
 
