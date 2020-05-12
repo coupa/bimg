@@ -594,6 +594,18 @@ func vipsTrim(image *C.VipsImage, background Color, threshold float64) (int, int
 	return int(top), int(left), int(width), int(height), nil
 }
 
+func vipsShrinkPNG(buf []byte, input *C.VipsImage, shrink int) (*C.VipsImage, error) {
+	var image *C.VipsImage
+	var ptr = unsafe.Pointer(&buf[0])
+	defer C.g_object_unref(C.gpointer(input))
+
+	err := C.vips_pngload_buffer_shrink(ptr, C.size_t(len(buf)), &image, C.int(shrink))
+	if err != 0 {
+		return nil, catchVipsError()
+	}
+
+	return image, nil
+}
 func vipsShrinkJpeg(buf []byte, input *C.VipsImage, shrink int) (*C.VipsImage, error) {
 	var image *C.VipsImage
 	var ptr = unsafe.Pointer(&buf[0])

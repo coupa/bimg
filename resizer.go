@@ -9,6 +9,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"math"
 )
 
@@ -68,8 +69,10 @@ func resizer(buf []byte, o Options) ([]byte, error) {
 
 	// Try to use libjpeg/libwebp shrink-on-load
 	supportsShrinkOnLoad := imageType == WEBP && VipsMajorVersion >= 8 && VipsMinorVersion >= 3
-	supportsShrinkOnLoad = supportsShrinkOnLoad || imageType == JPEG
-	if supportsShrinkOnLoad && shrink >= 2 {
+	supportsShrinkOnLoad = supportsShrinkOnLoad || imageType == JPEG || imageType == PNG
+	log.Infof("Shrink value inside bimg resizer.go is %d", shrink)
+	log.Infof("shrinkonLoad bool value is %d", supportsShrinkOnLoad)
+	if (supportsShrinkOnLoad && shrink >= 2) || (imageType == PNG) {
 		tmpImage, factor, err := shrinkOnLoad(buf, image, imageType, factor, shrink)
 		if err != nil {
 			return nil, err
@@ -421,7 +424,7 @@ func shrinkOnLoad(buf []byte, input *C.VipsImage, imageType ImageType, factor fl
 	var err error
 
 	// Reload input using shrink-on-load
-	if imageType == JPEG && shrink >= 2 {
+	if (imageType == JPEG && shrink >= 2) || (imageType == PNG) {
 		shrinkOnLoad := 1
 		// Recalculate integral shrink and double residual
 		switch {
@@ -436,7 +439,13 @@ func shrinkOnLoad(buf []byte, input *C.VipsImage, imageType ImageType, factor fl
 			shrinkOnLoad = 2
 		}
 
-		image, err = vipsShrinkJpeg(buf, input, shrinkOnLoad)
+		switch imageType {
+		case JPEG:
+			image, err = vipsShrinkJpeg(buf, input, shrinkOnLoad)
+		case PNG:
+			image, err = vipsShrinkPNG(buf, input, shrink)
+		}
+
 	} else if imageType == WEBP {
 		image, err = vipsShrinkWebp(buf, input, shrink)
 	} else {

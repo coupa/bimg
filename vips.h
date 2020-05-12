@@ -117,6 +117,11 @@ vips_jpegload_buffer_shrink(void *buf, size_t len, VipsImage **out, int shrink) 
 }
 
 int
+vips_pngload_buffer_shrink(void *buf, size_t len, VipsImage **out, int shrink) {
+  return vips_pngload_buffer(buf, len, out, "shrink", shrink, NULL);
+}
+
+int
 vips_webpload_buffer_shrink(void *buf, size_t len, VipsImage **out, int shrink) {
 	return vips_webpload_buffer(buf, len, out, "shrink", shrink, NULL);
 }
