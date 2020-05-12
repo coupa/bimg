@@ -321,19 +321,22 @@ func vipsArrayJoin(imgArr []*Image) (*C.VipsImage, error) {
 			if errorCode != 0 {
 				return nil, catchVipsError()
 			}
-			vipsArrayImage = C.vips_array_image_append(vipsArrayImage, inAlphaImage)
-			C.g_object_unref(C.gpointer(inAlphaImage))
-			continue
+			C.g_object_unref(C.gpointer(vipsImage))
+			vipsImage = inAlphaImage
 		}
-		// Correct number of bands are present. Don't process anything. Add to the array
-		vipsArrayImage = C.vips_array_image_append(vipsArrayImage, vipsImage)
+		temp := C.vips_array_image_append(vipsArrayImage, vipsImage)
+		C.g_object_unref(C.gpointer(vipsImage))
+		C.vips_area_unref(C.vips_area_bridge(vipsArrayImage))
+		vipsArrayImage = temp
 	}
 
 	var out *C.VipsImage
 	imgArrLength := C.int(len(imgArr))
 
-	vipsArrImg := C.vips_array_image_get(vipsArrayImage, &imgArrLength)
-	returnCode := C.vips_arrayjoin_bridge(vipsArrImg, &out, imgArrLength)
+	vImages := C.vips_array_image_get(vipsArrayImage, &imgArrLength)
+	returnCode := C.vips_arrayjoin_bridge(vImages, &out, imgArrLength) // Frees the memory of vImages internally.
+	C.vips_area_unref(C.vips_area_bridge(vipsArrayImage))
+
 	if returnCode != 0 {
 		return nil, catchVipsError()
 	}
@@ -360,6 +363,7 @@ func vipsReadWithOptions(buf []byte, o Options) (*C.VipsImage, ImageType, error)
 
 	opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages), Density: C.double(o.Density), PageToLoad: C.int(o.PageToLoad)}
 	err := C.vips_init_image(imageBuf, length, C.int(imageType), &image, (*C.Options)(unsafe.Pointer(&opts)))
+
 	if err != 0 {
 		return nil, UNKNOWN, catchVipsError()
 	}
@@ -532,12 +536,12 @@ func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
 		err = C.vips_jpegsave_bridge(image, &ptr, &length, 1, quality, interlace)
 	}
 
+	defer C.g_free(C.gpointer(ptr))
+	defer C.vips_error_clear()
+
 	if int(err) != 0 {
 		return nil, catchVipsError()
 	}
-
-	defer C.g_free(C.gpointer(ptr))
-	defer C.vips_error_clear()
 
 	return C.GoBytes(ptr, C.int(length)), nil
 }

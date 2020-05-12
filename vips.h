@@ -106,6 +106,11 @@ vips_enable_cache_set_trace() {
 	vips_cache_set_trace(TRUE);
 }
 
+VipsArea *
+vips_area_bridge(VipsArrayImage *in) {
+  return (VipsArea *) (in);
+}
+
 int
 vips_affine_interpolator(VipsImage *in, VipsImage **out, double a, double b, double c, double d, VipsInterpolate *interpolator) {
 	return vips_affine(in, out, a, b, c, d, "interpolate", interpolator, NULL);
@@ -249,7 +254,11 @@ vips_embed_bridge(VipsImage *in, VipsImage **out, int left, int top, int width, 
 	if (extend == VIPS_EXTEND_BACKGROUND) {
 		double background[3] = {r, g, b};
 		VipsArrayDouble *vipsBackground = vips_array_double_new(background, 3);
-		return vips_embed(in, out, left, top, width, height, "extend", extend, "background", vipsBackground, NULL);
+    int result;
+
+		result = vips_embed(in, out, left, top, width, height, "extend", extend, "background", vipsBackground, NULL);
+    vips_area_unref(VIPS_AREA(vipsBackground));
+    return result;
 	}
 	return vips_embed(in, out, left, top, width, height, "extend", extend, NULL);
 }
@@ -345,12 +354,15 @@ vips_flatten_background_brigde(VipsImage *in, VipsImage **out, double r, double 
 
 	double background[3] = {r, g, b};
 	VipsArrayDouble *vipsBackground = vips_array_double_new(background, 3);
+  int result;
 
-	return vips_flatten(in, out,
+	result =  vips_flatten(in, out,
 		"background", vipsBackground,
 		"max_alpha", vips_is_16bit(in->Type) ? 65535.0 : 255.0,
 		NULL
 	);
+  vips_area_unref(VIPS_AREA(vipsBackground));
+  return result;
 }
 
 int
@@ -565,8 +577,11 @@ int vips_find_trim_bridge(VipsImage *in, int *top, int *left, int *width, int *h
 	}
 
 	double background[3] = {r, g, b};
+  int result;
 	VipsArrayDouble *vipsBackground = vips_array_double_new(background, 3);
-	return vips_find_trim(in, top, left, width, height, "background", vipsBackground, "threshold", threshold, NULL);
+	result = vips_find_trim(in, top, left, width, height, "background", vipsBackground, "threshold", threshold, NULL);
+  vips_area_unref(VIPS_AREA(vipsBackground));
+  return result;
 #else
 	return 0;
 #endif
@@ -574,10 +589,19 @@ int vips_find_trim_bridge(VipsImage *in, int *top, int *left, int *width, int *h
 
 int 
 vips_arrayjoin_bridge(VipsImage **in, VipsImage **out, int n) {
+  int result;
   // Set background to white when joining images
   // It is requied to set four values, when joining png images with alpha band. Else it throws `linear vector` error
   double background[4] = {255.0, 255.0, 255.0, 255.0};
-  return vips_arrayjoin(in, out, n, "across", 1, "background", vips_array_double_new(background, 4),  NULL);
+  VipsArea *vips_bg = (VipsArea *)(vips_array_double_new(background, 4));
+
+  result = vips_arrayjoin(in, out, n, "across", 1, "background", vips_bg,  NULL);
+  vips_area_unref(VIPS_AREA(vips_bg));
+  int i;
+  for ( i = 0; i < n; i ++) {
+    g_object_unref(in[i]);
+  }
+  return result;
 }
 
 int
