@@ -21,6 +21,8 @@ func ImageJoin(imgArr []*Image, imageType ImageType) ([]byte, error) {
 	defer C.vips_thread_shutdown()
 
 	image, err := vipsArrayJoin(imgArr)
+	defer C.g_object_unref(C.gpointer(image))
+
 	if err != nil {
 		log.Errorf("[ImageJoin] vipsArrayJoin err - %v", err)
 		return nil, err

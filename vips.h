@@ -574,15 +574,45 @@ int vips_find_trim_bridge(VipsImage *in, int *top, int *left, int *width, int *h
 
 int 
 vips_arrayjoin_bridge(VipsImage **in, VipsImage **out, int n) {
+  int result;
   // Set background to white when joining images
   // It is requied to set four values, when joining png images with alpha band. Else it throws `linear vector` error
   double background[4] = {255.0, 255.0, 255.0, 255.0};
-  return vips_arrayjoin(in, out, n, "across", 1, "background", vips_array_double_new(background, 4),  NULL);
+  VipsArea *vips_bg = (VipsArea *)(vips_array_double_new(background, 4));
+
+  result = vips_arrayjoin(in, out, n, "across", 1, "background", vips_bg,  NULL);
+  vips_area_unref(VIPS_AREA(vips_bg));
+  return result;
 }
 
 int
 vips_write_to_file_bridge(VipsImage *in, const char *name) {
   return vips_image_write_to_file(in, name, NULL);
+}
+
+int 
+vips_pngload_buffer_with_alpha(void *buf, size_t len, VipsImage **out) {
+  int code;
+  code = vips_pngload_buffer(buf, len, out, "access", VIPS_ACCESS_SEQUENTIAL, NULL);
+  if(code != 0) {
+    return code;
+  }
+  // Add a solid alpha, if necessary
+  
+  // The interpretation for the incoming images is set as `sRGB` in imagica. Refer `parseColorspace` method in `params.go`.
+  // For a `sRGB` interpretation, bands should not be equal to 3. If so, then set an extra alpha band.
+  // Refer: https://github.com/libvips/libvips/issues/1525
+  if (!vips_image_hasalpha(*out)) {
+    VipsImage *x;
+
+    if (vips_addalpha(*out, &x, (void *) NULL)) {
+      return 1;
+    }
+
+    g_object_unref(*out);
+    *out = x;
+  }
+  return 0;
 }
 
 int
