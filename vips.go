@@ -302,42 +302,33 @@ func vipsRead(buf []byte) (*C.VipsImage, ImageType, error) {
 }
 
 func vipsArrayJoin(imgArr []*Image) (*C.VipsImage, error) {
-	vipsArrayImage := C.vips_array_image_empty()
+	framesCount := len(imgArr)
+	frames := make([]*C.VipsImage, framesCount)
 
-	// Convert bimg's image array to VipsImageArray
-	for _, image := range imgArr {
-		buff := image.buffer
-		vipsImage, _, err := vipsRead(buff)
-		if err != nil {
-			return nil, err
+	clear_frames := func() {
+		for i := 0; i < framesCount; i++ {
+			C.g_object_unref(C.gpointer(frames[i]))
 		}
-		// The interpretation for the incoming images is set as `sRGB` in imagica. Refer `parseColorspace` method in `params.go`.
-		// For a `sRGB` interpretation, bands should not be equal to 3. If so, then set an extra alpha band.
-		// Refer: https://github.com/libvips/libvips/issues/1525
-		bands := C.vips_image_get_bands(vipsImage)
-		if bands == BandValueToAddAlpha {
-			var inAlphaImage *C.VipsImage
-			errorCode := C.vips_addalpha_bridge(vipsImage, &inAlphaImage)
-			if errorCode != 0 {
-				return nil, catchVipsError()
-			}
-			vipsArrayImage = C.vips_array_image_append(vipsArrayImage, inAlphaImage)
-			C.g_object_unref(C.gpointer(inAlphaImage))
-			continue
+	}
+
+	for i := 0; i < framesCount; i++ {
+		buff := imgArr[i].buffer
+
+		returnCode := C.vips_pngload_buffer_with_alpha(unsafe.Pointer(&buff[0]), C.size_t(len(buff)), &frames[i])
+		if returnCode != 0 {
+			return nil, catchVipsError()
 		}
-		// Correct number of bands are present. Don't process anything. Add to the array
-		vipsArrayImage = C.vips_array_image_append(vipsArrayImage, vipsImage)
 	}
 
 	var out *C.VipsImage
-	imgArrLength := C.int(len(imgArr))
 
-	vipsArrImg := C.vips_array_image_get(vipsArrayImage, &imgArrLength)
-	returnCode := C.vips_arrayjoin_bridge(vipsArrImg, &out, imgArrLength)
+	returnCode := C.vips_arrayjoin_bridge(&frames[0], &out, C.int(framesCount))
 	if returnCode != 0 {
+		clear_frames()
 		return nil, catchVipsError()
 	}
 
+	clear_frames()
 	return out, nil
 }
 
