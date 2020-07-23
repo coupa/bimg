@@ -9,6 +9,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
 	"runtime"
@@ -523,6 +524,8 @@ func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
 		err = C.vips_jpegsave_bridge(image, &ptr, &length, 1, quality, interlace)
 	}
 
+	log.Infof("Error value is %d", int(err))
+
 	if int(err) != 0 {
 		return nil, catchVipsError()
 	}
@@ -530,6 +533,7 @@ func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
 	defer C.g_free(C.gpointer(ptr))
 	defer C.vips_error_clear()
 
+	log.Infof("Length value in C is %d", C.int(length))
 	return C.GoBytes(ptr, C.int(length)), nil
 }
 

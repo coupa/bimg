@@ -593,7 +593,7 @@ vips_write_to_file_bridge(VipsImage *in, const char *name) {
 int 
 vips_pngload_buffer_with_alpha(void *buf, size_t len, VipsImage **out) {
   int code;
-  code = vips_pngload_buffer(buf, len, out, "access", VIPS_ACCESS_SEQUENTIAL, NULL);
+  code = vips_pngload_buffer(buf, len, out, "access", VIPS_ACCESS_RANDOM, NULL);
   if(code != 0) {
     return code;
   }
