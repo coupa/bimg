@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -533,8 +534,25 @@ func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
 	defer C.g_free(C.gpointer(ptr))
 	defer C.vips_error_clear()
 
-	log.Infof("Length value in C is %d", C.int(length))
-	return C.GoBytes(ptr, C.int(length)), nil
+	fmt.Println("Length is %zu", length)
+	//fmt.Println("value is %d", C.int(unsafe.Sizeof(length)))
+
+	stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&ptr))
+
+	fmt.Println("I am done with stringHeader ==")
+
+	bh := reflect.SliceHeader{
+		Data: stringHeader.Data,
+		Len:  stringHeader.Len,
+		Cap:  stringHeader.Len,
+	}
+
+	fmt.Println("bh== done")
+
+	return *(*[]byte)(unsafe.Pointer(&bh)), nil
+
+	//log.Infof("Length value in C is %u", length)
+	//return C.GoBytes(ptr, C.int(length)), nil
 }
 
 func vipsExtract(image *C.VipsImage, left, top, width, height int) (*C.VipsImage, error) {
@@ -791,60 +809,131 @@ func VipsPDFPageCount(buf []byte) (int, error) {
 }
 
 func ImageJoinNew(buf []byte, pages int, o Options) ([]byte, error) {
+
+	frames := make([]*C.VipsImage, pages)
+
+	clear_frames := func() {
+		for i := 0; i < pages; i++ {
+			C.g_object_unref(C.gpointer(frames[i]))
+		}
+	}
+
+	// var final *C.VipsImage
+	// err := C.vips_tiffload_buffer_bridge(imageBuf, length, &final, C.int(0))
+
+	// if err != 0 {
+	// 	return nil, catchVipsError()
+	// }
+
 	length := C.size_t(len(buf))
 	imageBuf := unsafe.Pointer(&buf[0])
 
-	var final *C.VipsImage
-	err := C.vips_tiffload_buffer_bridge(imageBuf, length, &final, C.int(0))
-
-	if err != 0 {
-		return nil, catchVipsError()
-	}
-
-	for i := 1; i < pages; i++ {
-		var out *C.VipsImage
-		//var temp *C.VipsImage
-		err := C.vips_tiffload_buffer_bridge(imageBuf, length, &out, C.int(i))
-		if int(err) != 0 {
+	for i := 0; i < pages; i++ {
+		log.Infof("Pages coun is %d", i)
+		// var out *C.VipsImage
+		// var temp *C.VipsImage
+		returnCode := C.vips_tiffload_buffer_bridge(imageBuf, length, &frames[i], C.int(i))
+		if returnCode != 0 {
+			log.Infof("%d Return code is", returnCode)
 			return nil, catchVipsError()
 		}
 
-		//err = C.vips_join_bridge(final, out, &temp)
+		bands := C.vips_image_get_bands(frames[i])
+		log.Infof("*****band value is %d", bands)
 
-		err = C.vips_join_bridge(final, out, &final)
-		// C.g_object_unref(C.gpointer(final))
-		// C.swap_and_clear(&final, temp)
-
-		// var out *C.VipsImage
-		// err := C.int(0)
-		// //o.PageToLoad = i
-		// err = vips_tiffload_buffer_bridge(imageBuf, C.int(length), out, i)
-		// if int(err) != 0 {
-		//  return nil, catchVipsError()
-		// }
-
-		// returnCode := C.vips_pngload_buffer_with_alpha(unsafe.Pointer(&buff[0]), C.size_t(len(buff)), &frames[i])
-		// //opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages), Density: C.double(o.Density), PageToLoad: C.int(o.PageToLoad)}
-		// //C.g_object_unref(C.gpointer(frames[i]))
 	}
+
+	var out *C.VipsImage
+
+	log.Info("Gonna call array join now!!")
+
+	for i := 0; i < pages; i++ {
+		bands := C.vips_image_get_bands(frames[i])
+		log.Infof("*****band value once again is %d", bands)
+	}
+
+	log.Info("Gonna call array join now!!")
+
+	returnCode := C.vips_arrayjoin_bridge(&frames[0], &out, C.int(pages))
+	if returnCode != 0 {
+		log.Info("*********Issue here?????")
+		clear_frames()
+		return nil, catchVipsError()
+	}
+
+	log.Infof("Bands calc again %d", out.Bands)
+
+	//clear_frames()
+
+	//err = C.vips_join_bridge(final, out, &temp)
+
+	//err = C.vips_join_bridge(final, out, &temp)
+
+	//C.g_object_unref(C.gpointer(final))
+	//final = temp
+	// C.g_object_unref(C.gpointer(final))
+	// C.swap_and_clear(&final, temp)
+
+	// var out *C.VipsImage
+	// err := C.int(0)
+	// //o.PageToLoad = i
+	// err = vips_tiffload_buffer_bridge(imageBuf, C.int(length), out, i)
+	// if int(err) != 0 {
+	//  return nil, catchVipsError()
+	// }
+
+	// returnCode := C.vips_pngload_buffer_with_alpha(unsafe.Pointer(&buff[0]), C.size_t(len(buff)), &frames[i])
+	// //opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages), Density: C.double(o.Density), PageToLoad: C.int(o.PageToLoad)}
+	// //C.g_object_unref(C.gpointer(frames[i]))
+	// }
+
+	// outbuf, err := getImageBuffer(out, PNG)
+	// if err != nil {
+	// 	log.Infof("*********error in get image buffer %v", err)
+	// 	return nil, err
+	// }
+
+	// return outbuf, nil
 	var ptr unsafe.Pointer
 	length1 := C.size_t(0)
 	quality := C.int(o.Quality)
 	interlace := C.int(boolToInt(o.Interlace))
 	strip := C.int(boolToInt(true))
 
-	err = C.vips_pngsave_bridge(final, &ptr, &length1, strip, C.int(o.Compression), quality, interlace)
+	log.Info("*****gonna call png save bridge!!")
+	err := C.vips_pngsave_bridge(out, &ptr, &length1, strip, C.int(o.Compression), quality, interlace)
 
-	if int(err) != 0 {
+	if err != 0 {
 		return nil, catchVipsError()
 	}
 
-	outbuf := C.GoBytes(ptr, C.int(length1))
+	stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&ptr))
 
-	// Clean up
-	C.g_free(C.gpointer(ptr))
-	C.vips_error_clear()
+	fmt.Println("I am done with stringHeader ==")
 
-	return outbuf, nil
+	bh := reflect.SliceHeader{
+		Data: stringHeader.Data,
+		Len:  stringHeader.Len,
+		Cap:  stringHeader.Len,
+	}
+
+	fmt.Println("bh== done")
+
+	return *(*[]byte)(unsafe.Pointer(&bh)), nil
+
+	// log.Info("*****gonna call png save bridge done!!")
+
+	// if int(err) != 0 {
+	// 	log.Info("Errrrorrrr here :(")
+	// 	return nil, catchVipsError()
+	// }
+
+	// outbuf := C.GoBytes(ptr, C.int(length1))
+
+	// // Clean up
+	// C.g_free(C.gpointer(ptr))
+	// C.vips_error_clear()
+
+	// return outbuf, nil
 
 }

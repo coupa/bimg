@@ -356,10 +356,20 @@ vips_flatten_background_brigde(VipsImage *in, VipsImage **out, double r, double 
 int
 vips_tiffload_buffer_bridge(void *buf, size_t len, VipsImage **out, int page) {
   int code;
-  code =  vips_tiffload_buffer(buf, len, out, "access", VIPS_ACCESS_RANDOM, "page", page, NULL);
+  code =  vips_tiffload_buffer(buf, len, out, "access", VIPS_ACCESS_SEQUENTIAL, "page", page, NULL);
 
   if(code != 0) {
     return code;
+  }
+
+  if ((*out)->Bands < 2) {
+    VipsImage *y;
+    code = vips_colourspace(*out, &y, VIPS_INTERPRETATION_sRGB, NULL);
+    if (code != 0) {
+      return code;
+    }
+    g_object_unref(*out);
+    *out = y;
   }
   // Add a solid alpha, if necessary
   
