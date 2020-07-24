@@ -18,6 +18,10 @@ import (
 const PNGBufferError = "vips2png: unable to write to buffer"
 const PNGTargetError = "vips2png: unable to write to target"
 
+func ImageJoinRev(buf []byte, pages int, o Options) ([]byte, error) {
+	return ImageJoinNew(buf, pages, o)
+}
+
 func ImageJoin(imgArr []*Image, imageType ImageType) ([]byte, error) {
 	defer C.vips_thread_shutdown()
 

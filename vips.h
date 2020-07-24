@@ -354,6 +354,32 @@ vips_flatten_background_brigde(VipsImage *in, VipsImage **out, double r, double 
 }
 
 int
+vips_tiffload_buffer_bridge(void *buf, size_t len, VipsImage **out, int page) {
+  int code;
+  code =  vips_tiffload_buffer(buf, len, out, "access", VIPS_ACCESS_RANDOM, "page", page, NULL);
+
+  if(code != 0) {
+    return code;
+  }
+  // Add a solid alpha, if necessary
+  
+  // The interpretation for the incoming images is set as `sRGB` in imagica. Refer `parseColorspace` method in `params.go`.
+  // For a `sRGB` interpretation, bands should not be equal to 3. If so, then set an extra alpha band.
+  // Refer: https://github.com/libvips/libvips/issues/1525
+  if (!vips_image_hasalpha(*out)) {
+    VipsImage *x;
+
+    if (vips_addalpha(*out, &x, (void *) NULL)) {
+      return 1;
+    }
+
+    g_object_unref(*out);
+    *out = x;
+  }
+  return 0;
+};
+
+int
 vips_init_image (void *buf, size_t len, int imageType, VipsImage **out, Options *opts) {
 	int code = 1;
 
@@ -570,6 +596,31 @@ int vips_find_trim_bridge(VipsImage *in, int *top, int *left, int *width, int *h
 #else
 	return 0;
 #endif
+}
+
+void
+clear_image(VipsImage **in) {
+  if (G_IS_OBJECT(*in)) g_clear_object(in);
+}
+
+void
+swap_and_clear(VipsImage **in, VipsImage *out) {
+  clear_image(in);
+  *in = out;
+}
+
+int
+vips_join_bridge(VipsImage *first, VipsImage *second, VipsImage **final) {
+
+  int result;
+  // Set background to white when joining images
+  // It is requied to set four values, when joining png images with alpha band. Else it throws `linear vector` error
+  double background[4] = {255.0, 255.0, 255.0, 255.0};
+  VipsArea *vips_bg = (VipsArea *)(vips_array_double_new(background, 4));
+
+  result = vips_join(first, second, final, VIPS_DIRECTION_VERTICAL, "background", vips_bg,  "expand", TRUE,  NULL);
+  vips_area_unref(VIPS_AREA(vips_bg));
+  return result;
 }
 
 int 

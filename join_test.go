@@ -6,10 +6,8 @@ import (
 
 func TestImageJoin(t *testing.T) {
 	t.Run("For joining png images of different width and height", func(t *testing.T) {
-		var imgArray []*Image
-		imgArray = append(imgArray, initImage("test.png"))
-		imgArray = append(imgArray, initImage("test2.png"))
-		_, err := ImageJoin(imgArray, PNG)
+		buf, _ := imageBuf("2020141C26A074000.tif")
+		_, err := ImageJoinRev(buf, 10, Options{})
 		if err != nil {
 			t.Errorf("Issue in joining PNG images %v", err)
 		}

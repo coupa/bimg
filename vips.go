@@ -657,6 +657,10 @@ func vipsEmbed(input *C.VipsImage, left, top, width, height int, extend Extend, 
 	return image, nil
 }
 
+// func swap_and_clear_bridge(output *C.VipsImage, input *C.VipsImage) {
+
+// }
+
 func vipsAffine(input *C.VipsImage, residualx, residualy float64, i Interpolator) (*C.VipsImage, error) {
 	var image *C.VipsImage
 	cstring := C.CString(i.String())
@@ -784,4 +788,63 @@ func VipsPDFPageCount(buf []byte) (int, error) {
 	}
 	pages := C.vips_image_get_n_pages_bridge(image)
 	return int(pages), nil
+}
+
+func ImageJoinNew(buf []byte, pages int, o Options) ([]byte, error) {
+	length := C.size_t(len(buf))
+	imageBuf := unsafe.Pointer(&buf[0])
+
+	var final *C.VipsImage
+	err := C.vips_tiffload_buffer_bridge(imageBuf, length, &final, C.int(0))
+
+	if err != 0 {
+		return nil, catchVipsError()
+	}
+
+	for i := 1; i < pages; i++ {
+		var out *C.VipsImage
+		//var temp *C.VipsImage
+		err := C.vips_tiffload_buffer_bridge(imageBuf, length, &out, C.int(i))
+		if int(err) != 0 {
+			return nil, catchVipsError()
+		}
+
+		//err = C.vips_join_bridge(final, out, &temp)
+
+		err = C.vips_join_bridge(final, out, &final)
+		// C.g_object_unref(C.gpointer(final))
+		// C.swap_and_clear(&final, temp)
+
+		// var out *C.VipsImage
+		// err := C.int(0)
+		// //o.PageToLoad = i
+		// err = vips_tiffload_buffer_bridge(imageBuf, C.int(length), out, i)
+		// if int(err) != 0 {
+		//  return nil, catchVipsError()
+		// }
+
+		// returnCode := C.vips_pngload_buffer_with_alpha(unsafe.Pointer(&buff[0]), C.size_t(len(buff)), &frames[i])
+		// //opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages), Density: C.double(o.Density), PageToLoad: C.int(o.PageToLoad)}
+		// //C.g_object_unref(C.gpointer(frames[i]))
+	}
+	var ptr unsafe.Pointer
+	length1 := C.size_t(0)
+	quality := C.int(o.Quality)
+	interlace := C.int(boolToInt(o.Interlace))
+	strip := C.int(boolToInt(true))
+
+	err = C.vips_pngsave_bridge(final, &ptr, &length1, strip, C.int(o.Compression), quality, interlace)
+
+	if int(err) != 0 {
+		return nil, catchVipsError()
+	}
+
+	outbuf := C.GoBytes(ptr, C.int(length1))
+
+	// Clean up
+	C.g_free(C.gpointer(ptr))
+	C.vips_error_clear()
+
+	return outbuf, nil
+
 }
