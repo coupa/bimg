@@ -10,9 +10,10 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	//"internal/bytealg"
 	"math"
 	"os"
-	"reflect"
+	//"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -84,6 +85,12 @@ type vipsLoadOptions struct {
 	NumOfPages C.int
 	PageToLoad C.int
 	Density    C.double
+}
+
+type SliceHeaderRev struct {
+	Data uintptr
+	Len  int64
+	Cap  int64
 }
 
 func init() {
@@ -534,25 +541,29 @@ func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
 	defer C.g_free(C.gpointer(ptr))
 	defer C.vips_error_clear()
 
-	fmt.Println("Length is %zu", length)
-	//fmt.Println("value is %d", C.int(unsafe.Sizeof(length)))
+	// return ([]byte)(*ptr), nil
 
-	stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&ptr))
+	//  newData := *(*string)(ptr)
 
-	fmt.Println("I am done with stringHeader ==")
+	// fmt.Println("Length is %zu", length)
+	// //fmt.Println("value is %d", C.int(unsafe.Sizeof(length)))
 
-	bh := reflect.SliceHeader{
-		Data: stringHeader.Data,
-		Len:  stringHeader.Len,
-		Cap:  stringHeader.Len,
-	}
+	// stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&ptr))
 
-	fmt.Println("bh== done")
+	// fmt.Println("I am done with stringHeader ==")
 
-	return *(*[]byte)(unsafe.Pointer(&bh)), nil
+	// bh := reflect.SliceHeader{
+	// 	Data: stringHeader.Data,
+	// 	Len:  stringHeader.Len,
+	// 	Cap:  stringHeader.Len,
+	// }
+
+	// fmt.Println("bh== done")
+
+	// return *(*[]byte)(unsafe.Pointer(&bh)), nil
 
 	//log.Infof("Length value in C is %u", length)
-	//return C.GoBytes(ptr, C.int(length)), nil
+	return C.GoBytes(ptr, C.int(length)), nil
 }
 
 func vipsExtract(image *C.VipsImage, left, top, width, height int) (*C.VipsImage, error) {
@@ -818,40 +829,19 @@ func ImageJoinNew(buf []byte, pages int, o Options) ([]byte, error) {
 		}
 	}
 
-	// var final *C.VipsImage
-	// err := C.vips_tiffload_buffer_bridge(imageBuf, length, &final, C.int(0))
-
-	// if err != 0 {
-	// 	return nil, catchVipsError()
-	// }
-
 	length := C.size_t(len(buf))
 	imageBuf := unsafe.Pointer(&buf[0])
 
 	for i := 0; i < pages; i++ {
 		log.Infof("Pages coun is %d", i)
-		// var out *C.VipsImage
-		// var temp *C.VipsImage
 		returnCode := C.vips_tiffload_buffer_bridge(imageBuf, length, &frames[i], C.int(i))
 		if returnCode != 0 {
 			log.Infof("%d Return code is", returnCode)
 			return nil, catchVipsError()
 		}
-
-		bands := C.vips_image_get_bands(frames[i])
-		log.Infof("*****band value is %d", bands)
-
 	}
 
 	var out *C.VipsImage
-
-	log.Info("Gonna call array join now!!")
-
-	for i := 0; i < pages; i++ {
-		bands := C.vips_image_get_bands(frames[i])
-		log.Infof("*****band value once again is %d", bands)
-	}
-
 	log.Info("Gonna call array join now!!")
 
 	returnCode := C.vips_arrayjoin_bridge(&frames[0], &out, C.int(pages))
@@ -861,39 +851,6 @@ func ImageJoinNew(buf []byte, pages int, o Options) ([]byte, error) {
 		return nil, catchVipsError()
 	}
 
-	log.Infof("Bands calc again %d", out.Bands)
-
-	//clear_frames()
-
-	//err = C.vips_join_bridge(final, out, &temp)
-
-	//err = C.vips_join_bridge(final, out, &temp)
-
-	//C.g_object_unref(C.gpointer(final))
-	//final = temp
-	// C.g_object_unref(C.gpointer(final))
-	// C.swap_and_clear(&final, temp)
-
-	// var out *C.VipsImage
-	// err := C.int(0)
-	// //o.PageToLoad = i
-	// err = vips_tiffload_buffer_bridge(imageBuf, C.int(length), out, i)
-	// if int(err) != 0 {
-	//  return nil, catchVipsError()
-	// }
-
-	// returnCode := C.vips_pngload_buffer_with_alpha(unsafe.Pointer(&buff[0]), C.size_t(len(buff)), &frames[i])
-	// //opts := vipsLoadOptions{NumOfPages: C.int(o.NumOfPages), Density: C.double(o.Density), PageToLoad: C.int(o.PageToLoad)}
-	// //C.g_object_unref(C.gpointer(frames[i]))
-	// }
-
-	// outbuf, err := getImageBuffer(out, PNG)
-	// if err != nil {
-	// 	log.Infof("*********error in get image buffer %v", err)
-	// 	return nil, err
-	// }
-
-	// return outbuf, nil
 	var ptr unsafe.Pointer
 	length1 := C.size_t(0)
 	quality := C.int(o.Quality)
@@ -901,39 +858,93 @@ func ImageJoinNew(buf []byte, pages int, o Options) ([]byte, error) {
 	strip := C.int(boolToInt(true))
 
 	log.Info("*****gonna call png save bridge!!")
+	//runtime.SetCgoTraceback(0, unsafe.Pointer(C.pprofCgoTraceback), nil, nil)
 	err := C.vips_pngsave_bridge(out, &ptr, &length1, strip, C.int(o.Compression), quality, interlace)
 
 	if err != 0 {
 		return nil, catchVipsError()
 	}
 
-	stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&ptr))
+	fmt.Println("Length is %zu", length1)
 
-	fmt.Println("I am done with stringHeader ==")
+	//byteSlice := (*[1 << 40]byte)(ptr)[:length1:length1]
 
-	bh := reflect.SliceHeader{
-		Data: stringHeader.Data,
-		Len:  stringHeader.Len,
-		Cap:  stringHeader.Len,
-	}
+	//return byteSlice, nil
+	return C.GoBytes(ptr, C.int(length1)), nil
 
-	fmt.Println("bh== done")
+	// var theCArray *TheCType := C.getTheArray()
+	//       length := C.getTheArrayLength()
+	// var theGoSlice []byte
+	// sliceHeader := (*reflect.SliceHeader)((unsafe.Pointer(&theGoSlice)))
+	// sliceHeader.Cap = (int)(length1)
+	// sliceHeader.Len = (int)(length1)
+	// sliceHeader.Data = uintptr(unsafe.Pointer(&ptr))
+	// return theGoSlice, nil
 
-	return *(*[]byte)(unsafe.Pointer(&bh)), nil
+	// log.Infof("Ptr is what? %v", ptr)
 
-	// log.Info("*****gonna call png save bridge done!!")
+	//var b []byte
+	// hdr := (*reflect.SliceHeader)(unsafe.Pointer(&b)) // case 1
+	// hdr.Data = uintptr(unsafe.Pointer(ptr))           // case 6 (this case)
+	// hdr.Len = (int)(length1)
 
-	// if int(err) != 0 {
-	// 	log.Info("Errrrorrrr here :(")
-	// 	return nil, catchVipsError()
+	// stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&ptr))
+	// bh := reflect.SliceHeader{
+	// 	Data: stringHeader.Data,
+	// 	Len:  stringHeader.Len,
+	// 	Cap:  stringHeader.Len,
+	// }
+	// return *(*[]byte)(unsafe.Pointer(&bh)), nil
+
+	// slice := (*[1 << 32]byte)(unsafe.Pointer(&ptr))[:length1:length1]
+	// return slice, nil
+
+	// return C.GoBytes(ptr, C.int(length1)), nil
+
+	// for i, v := range length {
+	//    fmt.Println(*(unsafe.pointer()))
 	// }
 
-	// outbuf := C.GoBytes(ptr, C.int(length1))
+	// strPtr := (*string)(&ptr)
 
-	// // Clean up
-	// C.g_free(C.gpointer(ptr))
-	// C.vips_error_clear()
+	// value := *strPtr
 
-	// return outbuf, nil
+	// log.Infof("Value is %s", value)
+
+	//var b []byte
+	//return b, nil
+
+	// return *(*[]byte)(ptr), nil
+
+	// log.Infof("Length is %v", length1)
+	// log.Infof("C.int Length is %d", C.int(length1))
+	// fmt.Println("Long long is %zu", C.longlong(length1))
+	// log.Infof("Type is %T", reflect.TypeOf(length1))
+
+	// // var theCArray *TheCType := C.getTheArray()
+	// //       length := C.getTheArrayLength()
+	// var theGoSlice []byte
+	// sliceHeader := (*SliceHeaderRev)((unsafe.Pointer(&theGoSlice)))
+	// sliceHeader.Cap = (int64)(length1)
+	// sliceHeader.Len = (int64)(length1)
+	// sliceHeader.Data = uintptr(unsafe.Pointer(&ptr))
+	// return theGoSlice, nil
+
+	// stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&ptr))
+
+	// bh := reflect.SliceHeader{
+	// 	Data: stringHeader.Data,
+	// 	Len:  stringHeader.Len,
+	// 	Cap:  stringHeader.Len,
+	// }
+
+	// fmt.Println("bh== done")
+
+	// return *(*[]byte)(unsafe.Pointer(&bh)), nil
+
+	//return C.GoBytes(ptr, C.int(length))
+
+	//slice := (*[1 << 32]byte)(unsafe.Pointer(&ptr))[:length1:length1]
+	//return slice, nil
 
 }
