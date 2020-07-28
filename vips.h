@@ -556,6 +556,42 @@ vips_smartcrop_bridge(VipsImage *in, VipsImage **out, int width, int height) {
 #endif
 }
 
+int
+vips_tiffload_buffer_bridge_with_alpha(void *buf, size_t len, VipsImage **out, int page) {
+  int code;
+  code =  vips_tiffload_buffer(buf, len, out, "access", VIPS_ACCESS_SEQUENTIAL, "page", page, NULL);
+
+  if(code != 0) {
+    return code;
+  }
+
+  if ((*out)->Bands < 2) {
+    VipsImage *y;
+    code = vips_colourspace(*out, &y, VIPS_INTERPRETATION_sRGB, NULL);
+    if (code != 0) {
+      return code;
+    }
+    g_object_unref(*out);
+    *out = y;
+  }
+  // Add a solid alpha, if necessary
+  
+  // The interpretation for the incoming images is set as `sRGB` in imagica. Refer `parseColorspace` method in `params.go`.
+  // For a `sRGB` interpretation, bands should not be equal to 3. If so, then set an extra alpha band.
+  // Refer: https://github.com/libvips/libvips/issues/1525
+  if (!vips_image_hasalpha(*out)) {
+    VipsImage *x;
+
+    if (vips_addalpha(*out, &x, (void *) NULL)) {
+      return 1;
+    }
+
+    g_object_unref(*out);
+    *out = x;
+  }
+  return 0;
+};
+
 int vips_find_trim_bridge(VipsImage *in, int *top, int *left, int *width, int *height, double r, double g, double b, double threshold) {
 #if (VIPS_MAJOR_VERSION >= 8 && VIPS_MINOR_VERSION >= 6)
 	if (vips_is_16bit(in->Type)) {
@@ -588,31 +624,6 @@ vips_arrayjoin_bridge(VipsImage **in, VipsImage **out, int n) {
 int
 vips_write_to_file_bridge(VipsImage *in, const char *name) {
   return vips_image_write_to_file(in, name, NULL);
-}
-
-int 
-vips_pngload_buffer_with_alpha(void *buf, size_t len, VipsImage **out) {
-  int code;
-  code = vips_pngload_buffer(buf, len, out, "access", VIPS_ACCESS_SEQUENTIAL, NULL);
-  if(code != 0) {
-    return code;
-  }
-  // Add a solid alpha, if necessary
-  
-  // The interpretation for the incoming images is set as `sRGB` in imagica. Refer `parseColorspace` method in `params.go`.
-  // For a `sRGB` interpretation, bands should not be equal to 3. If so, then set an extra alpha band.
-  // Refer: https://github.com/libvips/libvips/issues/1525
-  if (!vips_image_hasalpha(*out)) {
-    VipsImage *x;
-
-    if (vips_addalpha(*out, &x, (void *) NULL)) {
-      return 1;
-    }
-
-    g_object_unref(*out);
-    *out = x;
-  }
-  return 0;
 }
 
 int
