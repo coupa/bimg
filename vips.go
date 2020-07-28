@@ -111,6 +111,7 @@ func Initialize() {
 	// Set libvips cache params
 	C.vips_cache_set_max_mem(maxCacheMem)
 	C.vips_cache_set_max(maxCacheSize)
+	//C.vips_leak_set(1)
 
 	// Enable libvips cache tracing
 	if os.Getenv("VIPS_TRACE") != "" {
@@ -301,37 +302,6 @@ func vipsRead(buf []byte) (*C.VipsImage, ImageType, error) {
 	return vipsReadWithOptions(buf, Options{})
 }
 
-func vipsArrayJoin(imgArr []*Image) (*C.VipsImage, error) {
-	framesCount := len(imgArr)
-	frames := make([]*C.VipsImage, framesCount)
-
-	clear_frames := func() {
-		for i := 0; i < framesCount; i++ {
-			C.g_object_unref(C.gpointer(frames[i]))
-		}
-	}
-
-	for i := 0; i < framesCount; i++ {
-		buff := imgArr[i].buffer
-
-		returnCode := C.vips_pngload_buffer_with_alpha(unsafe.Pointer(&buff[0]), C.size_t(len(buff)), &frames[i])
-		if returnCode != 0 {
-			return nil, catchVipsError()
-		}
-	}
-
-	var out *C.VipsImage
-
-	returnCode := C.vips_arrayjoin_bridge(&frames[0], &out, C.int(framesCount))
-	if returnCode != 0 {
-		clear_frames()
-		return nil, catchVipsError()
-	}
-
-	clear_frames()
-	return out, nil
-}
-
 func vipsReadWithOptions(buf []byte, o Options) (*C.VipsImage, ImageType, error) {
 	var image *C.VipsImage
 	imageType := vipsImageType(buf)
@@ -356,6 +326,18 @@ func vipsReadWithOptions(buf []byte, o Options) (*C.VipsImage, ImageType, error)
 	}
 
 	return image, imageType, nil
+}
+
+func vipsTIFFReadWithAlpha(buf []byte, pageToLoad int) (*C.VipsImage, error) {
+	var out *C.VipsImage
+	length := C.size_t(len(buf))
+	imageBuf := unsafe.Pointer(&buf[0])
+
+	code := C.vips_tiffload_buffer_bridge_with_alpha(imageBuf, length, &out, C.int(pageToLoad))
+	if code != 0 {
+		return nil, catchVipsError()
+	}
+	return out, nil
 }
 
 func vipsColourspaceIsSupportedBuffer(buf []byte) (bool, error) {
@@ -507,13 +489,28 @@ func vipsWriteToFile(image *C.VipsImage, filename string) error {
 	return nil
 }
 
+type CImageBuffer struct {
+	ptr    unsafe.Pointer
+	length C.size_t
+}
+
+func (cImageBuffer *CImageBuffer) free() {
+	fmt.Println("I am inside finalizer!!")
+	C.g_free(C.gpointer(cImageBuffer.ptr))
+}
+
 func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
+	fmt.Println("Inside getImageBuffer")
 	var ptr unsafe.Pointer
 
 	length := C.size_t(0)
 	interlace := C.int(0)
 	compression := C.int(0)
 	quality := C.int(100)
+
+	// cImageBuffer := &CImageBuffer{}
+	// runtime.SetFinalizer(cImageBuffer, (*CImageBuffer).free)
+	// fmt.Println("Set finalizer done")
 
 	err := C.int(0)
 	switch imageType {
@@ -524,13 +521,56 @@ func getImageBuffer(image *C.VipsImage, imageType ImageType) ([]byte, error) {
 	}
 
 	if int(err) != 0 {
+		fmt.Println("Inside gonna catch vips error")
 		return nil, catchVipsError()
 	}
+
+	fmt.Println("GetImageBuffer save call done!!")
+
+	// cFoo := &CFoo{
+	// 	memory: ptr,
+	// }
+	// abc := &ptr
+	//fmt.Println(&ptr)
+	// fmt.Println(cFoo.memory)
+	// fmt.Println(abc)
+	// runtime.SetFinalizer(cFoo, free)
+
+	// runtime.SetFinalizer(&ptr, func(ptr *unsafe.Pointer) {
+	// 	fmt.Println("I am inside SetFinalizer ")
+	// 	fmt.Println(&ptr)
+	// 	C.g_free(C.gpointer(ptr))
+	// })
 
 	defer C.g_free(C.gpointer(ptr))
 	defer C.vips_error_clear()
 
-	return C.GoBytes(ptr, C.int(length)), nil
+	// For length > math.MaxInt32, we cant use C.GoBytes as it gives "gobytes: length out of range" - https://golang.org/src/runtime/string.go#L303
+	// This check is mainly to avoid unnecessary regression and `C.GoBytes` can be removed to use the below conversion for C array to Go Slice.
+	// math.MaxInt32 --> 1<<31 - 1
+	if length < math.MaxInt32 {
+		fmt.Println("less thatn maxint32")
+		return C.GoBytes(ptr, C.int(length)), nil
+	}
+
+	// For length > math.MaxInt32, we create a Go slice backed by a C array (without copying the original data),
+	// and acquire its length at runtime and use a type conversion to a pointer to a very big array and then slice it to the length that we want.
+	// Refer https://github.com/golang/go/wiki/cgo#turning-c-arrays-into-go-slices
+	var byteSlice []byte
+	byteSlice = (*[1<<50 - 1]byte)(ptr)[:length:length] // For 64-bit machine, the max number it can go is 50 as per https://github.com/golang/go/issues/13656#issuecomment-291957684
+	// // math.MaxUint32 --> 1<<32 - 1
+	// if length > math.MaxUint32 {
+	// 	byteSlice = (*[1<<50 - 1]byte)(ptr)[:length:length] // For 64-bit machine, the max number it can go is 50 as per https://github.com/golang/go/issues/13656#issuecomment-291957684
+	// } else {
+	// 	byteSlice = (*[math.MaxUint32]byte)(ptr)[:length:length]
+	// }
+
+	outBuff := make([]byte, length)
+	// `byteSlice` is created without copying the original data from C. Go garbage collector will not interact with this data and
+	// it should be freed from C side. (refer C.g_free(ptr) above)
+	// Creating a copy of the `byteSlice` so that Go garbage collector works on freeing up the memory.
+	copy(outBuff, byteSlice)
+	return outBuff, nil
 }
 
 func vipsExtract(image *C.VipsImage, left, top, width, height int) (*C.VipsImage, error) {
@@ -780,4 +820,13 @@ func VipsPDFPageCount(buf []byte) (int, error) {
 	}
 	pages := C.vips_image_get_n_pages_bridge(image)
 	return int(pages), nil
+}
+
+func vipsArrayJoin(images []*C.VipsImage) (*C.VipsImage, error) {
+	var out *C.VipsImage
+	code := C.vips_arrayjoin_bridge(&images[0], &out, C.int(len(images)))
+	if code != 0 {
+		return nil, catchVipsError()
+	}
+	return out, nil
 }
