@@ -119,6 +119,7 @@ func Initialize() {
 	// Set libvips cache params
 	C.vips_cache_set_max_mem(maxCacheMem)
 	C.vips_cache_set_max(maxCacheSize)
+	//C.vips_leak_set(1)
 
 	// Enable libvips cache tracing
 	if os.Getenv("VIPS_TRACE") != "" {
@@ -475,13 +476,13 @@ func vipsSave(image *C.VipsImage, o vipsSaveOptions) ([]byte, error) {
 		return nil, catchVipsError()
 	}
 
-	buf := C.GoBytes(ptr, C.int(length))
+	//buf := C.GoBytes(ptr, C.int(length))
 
 	// Clean up
-	C.g_free(C.gpointer(ptr))
-	C.vips_error_clear()
+	defer C.g_free(C.gpointer(ptr))
+	defer C.vips_error_clear()
 
-	return buf, nil
+	return C.GoBytes(ptr, C.int(length)), nil
 }
 
 func vipsWriteToFile(image *C.VipsImage, filename string) error {
